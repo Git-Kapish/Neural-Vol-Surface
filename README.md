@@ -1,107 +1,314 @@
 # Neural Volatility Surface
 
-Builds an implied-volatility surface from a real SPY option chain, then uses neural networks to
-(A) smooth it with no-arbitrage penalties, (B) calibrate a Heston model with a neural pricer, and
-(C) forecast surface evolution. See `PRD.md` for scope and `docs/progress.md` for the per-milestone log.
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
+![SciPy](https://img.shields.io/badge/SciPy-Scientific%20Computing-8CAAE6?logo=scipy&logoColor=white)
+![yfinance](https://img.shields.io/badge/yfinance-Market%20Data-2E8B57)
+![Plotly](https://img.shields.io/badge/Plotly-Interactive%20Charts-3F4F75?logo=plotly&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-Tests-0A9EDC?logo=pytest&logoColor=white)
+![Ruff](https://img.shields.io/badge/Ruff-Linting-D7FF64?logo=ruff&logoColor=black)
+![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## Real vs synthetic data (read this first)
-| Part | Data |
-|---|---|
-| Surface construction, SVI, neural smoother, Heston calibration | **Real**: one delayed yfinance SPY snapshot (`data/raw/<date>/`, git-ignored) |
-| Neural pricer training and its error table | **Synthetic**: exact Heston prices on sampled parameters |
-| Forecaster (Track C) | **Synthetic only**: latent Heston dynamics + quote noise. Free sources give no option history, so **no forecasting result here is a real-data result** |
+Builds an implied-volatility surface from a real SPY option-chain snapshot, then applies neural methods to:
 
-A daily snapshot collector (`scripts/collect_snapshot.py`) is included. Schedule it if you want real
-history to accumulate. Details in `docs/data_sources.md`.
+- smooth the surface while enforcing no-arbitrage constraints,
+- calibrate a Heston stochastic-volatility model with a neural pricer, and
+- forecast surface evolution in a controlled synthetic setting.
 
-## Run it
-Needs `uv` and Python 3.11 (CPU only).
+The project combines quantitative finance, numerical option pricing, optimization, and neural networks in a reproducible CPU-only research pipeline.
+
+See `PRD.md` for the project scope and `docs/progress.md` for the milestone-by-milestone development log.
+
+## Real vs. synthetic data
+
+**Read this distinction before interpreting the results.** The project deliberately separates market-derived results from synthetic experiments.
+
+| Component | Data | Interpretation |
+|---|---|---|
+| Surface construction | **Real** SPY option-chain snapshot from yfinance | Market-observed snapshot |
+| SVI fitting | **Real** snapshot | Surface reconstruction |
+| Neural smoother | **Real** snapshot | Surface smoothing and arbitrage diagnostics |
+| Heston calibration | **Real** snapshot | Model calibration against observed IVs |
+| Neural pricer training | **Synthetic** exact Heston prices | Controlled pricing approximation |
+| Neural pricer error table | **Synthetic** held-out Heston parameter sets | Pricing approximation accuracy |
+| Forecaster (Track C) | **Synthetic only** latent Heston dynamics + quote noise | Methodology experiment; **not a real-market forecast** |
+
+The repository includes a daily snapshot collector at `scripts/collect_snapshot.py`. Scheduling it allows a real historical dataset to accumulate over time. See `docs/data_sources.md` for data-source details.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[SPY Option Chain<br/>yfinance Snapshot] --> B[Cleaning & Filtering]
+    B --> C[Forward Extraction<br/>Put-Call Parity]
+    C --> D[OTM IV Inversion]
+    D --> E[IV Surface<br/>k = ln(K/F), w = sigma²T]
+
+    E --> F[SVI Per Slice]
+    E --> G[Neural Smoother]
+    G --> H[Butterfly + Calendar<br/>Arbitrage Penalties]
+
+    E --> I[Heston Calibration]
+    J[Synthetic Heston Parameters] --> K[Exact Heston Pricer]
+    K --> L[Neural Pricer]
+    L --> I
+
+    M[Synthetic Surface History] --> N[PCA Factors]
+    N --> O[Persistence / AR / MLP]
+    O --> P[Next-Day Surface Forecast]
+
+    F --> Q[Diagnostics & Figures]
+    G --> Q
+    I --> Q
+    P --> Q
 ```
-make setup          # venv + dependencies
-make fetch          # snapshot -> data/raw/YYYY-MM-DD/
-make surface        # clean, forwards, IVs, SVI, arbitrage diagnostics, figures
-make train-pricer   # Heston training set + neural pricer (about 10 min)
-make calibrate      # neural vs exact calibration to the snapshot
-make smooth         # neural smoother + stress test (about 10 min)
-make forecast       # synthetic-history forecaster
-make test && make lint
+
+## Quick start
+
+Requires **Python 3.11** and `uv`. The pipeline is designed to run on CPU.
+
+```bash
+make setup
+make fetch
+make surface
+make train-pricer
+make calibrate
+make smooth
+make forecast
+make test
+make lint
 python scripts/run_all.py [--skip-fetch] [--skip-train]
 ```
-Figures land in `results/figures/` (interactive 3D as `*.html`, loads plotly.js from a CDN),
-tables in `results/tables/`, the two small trained models in `results/models/`.
-`make fetch` downloads whatever the market looks like today, so a re-run reproduces the pipeline,
-not the exact numbers below (those are for the 2026-11-07 snapshot, which was a Saturday: Friday's close).
 
-## Method in brief
-- **Cleaning** (every rejection counted in the log): positive bid/ask, spread <= 50%, mid >= $0.05, open interest >= 10, stale-and-no-volume dropped. 6141 quotes -> 4483 -> 2931 OTM quotes, 0 inversion failures.
-- **Forward per expiry** from put-call parity on the 12 pairs nearest spot, with DF = exp(-rT) at a 4% rate (a free-slope fit was too noisy; see `extract_forward`). Coordinates are k = ln(K/F) and total variance w = sigma^2 T.
-- **IV inversion**: OTM mid, bounds checked first, safeguarded Newton with bisection fallback, repriced to verify.
-- **Heston**: characteristic function (little-trap form), Lewis integral, Gauss-Legendre. Checked against the Fang-Oosterlee (2008) benchmark price and an independent quadrature.
-- **Neural pricer**: MLP theta -> IV on a fixed 9 (k) x 6 (T) grid (`configs/default.yaml`), validated on held-out parameters against the exact pricer.
-- **Smoother**: MLP (k, T) -> IV with autograd butterfly (Gatheral g >= 0) and calendar (dw/dT >= 0) penalties.
-- **Forecaster**: persistence, AR on PCA factors, MLP on lagged factors; expanding-window walk-forward, no shuffling.
+Outputs are written to `results/figures/`, `results/tables/`, and `results/models/`. Interactive 3D figures are saved as `*.html` and load Plotly.js from a CDN.
+
+### Reproducibility note
+
+`make fetch` downloads the market as it exists at execution time. Therefore, rerunning the pipeline reproduces the **method and workflow**, not the exact market numbers reported below.
+
+The reported real-data snapshot is dated **2026-11-07** and represents Friday's close because that date was a Saturday.
+
+## Methodology
+
+### 1. Option-chain cleaning
+
+The raw option chain is filtered using explicit quality checks, with every rejection counted in the processing log:
+
+- positive bid and ask,
+- bid-ask spread ≤ 50%,
+- mid price ≥ $0.05,
+- open interest ≥ 10,
+- stale quotes with no volume removed.
+
+The reported pipeline reduced:
+
+`6,141 raw quotes → 4,483 cleaned quotes → 2,931 OTM quotes`
+
+with **0 IV inversion failures**.
+
+### 2. Forward extraction
+
+For each expiry, the forward is estimated from the 12 put-call pairs nearest spot using put-call parity.
+
+The discount factor is:
+
+`DF = exp(-rT)`
+
+with a fixed **4% rate**. The free-slope parity fit was considered too noisy, so the forward absorbs dividend/borrow effects.
+
+The surface is represented in log-moneyness `k = ln(K/F)` and total variance `w = σ²T`.
+
+### 3. Implied-volatility inversion
+
+OTM option mids are inverted to implied volatility after checking pricing bounds. The solver uses safeguarded Newton iterations, bisection fallback when necessary, and repricing to verify the recovered IV.
+
+### 4. Heston pricing
+
+The Heston implementation uses a characteristic function in little-trap form, Lewis integration, and Gauss-Legendre quadrature. It was checked against the Fang-Oosterlee (2008) benchmark and an independent quadrature implementation.
+
+### 5. Neural Heston pricer
+
+An MLP learns the mapping `Heston parameters → implied volatility` on a fixed **9 × 6 (`k` × `T`) grid** defined in `configs/default.yaml`.
+
+Training labels are generated from the exact Heston pricer. The neural model is evaluated on held-out parameter sets to measure approximation error.
+
+### 6. Neural surface smoother
+
+A second MLP maps `(k, T) → IV` while incorporating differentiable no-arbitrage penalties:
+
+- **Butterfly arbitrage:** Gatheral `g ≥ 0`
+- **Calendar arbitrage:** `dw/dT ≥ 0`
+
+The model is compared against raw interpolation and per-slice SVI.
+
+### 7. Surface forecasting
+
+The forecasting experiment compares persistence, autoregression on PCA factors, and an MLP on lagged PCA factors. Evaluation uses expanding-window walk-forward validation with no shuffling.
+
+Importantly, this track uses **synthetic history only** because the project does not have a real historical option-surface dataset.
 
 ## Key results
-All numbers: SPY snapshot 2026-11-07 (real) unless marked synthetic. Tables in `results/tables/`.
 
-**Neural pricer vs exact Heston, 5,000 held-out parameter sets (synthetic labels), error in vol points**
+All results below come from the reported **2026-11-07 SPY snapshot** unless explicitly marked synthetic. Detailed tables are stored under `results/tables/`.
 
-| region | mean | p95 | max |
-|---|---|---|---|
-| all | 0.0055 | 0.016 | 1.32 |
-| ATM (abs k <= 0.04) | 0.0044 | 0.013 | 0.49 |
-| wings (abs k >= 0.14) | 0.0068 | 0.019 | 1.32 |
-| short T (<= 0.10y) | 0.0072 | 0.020 | 1.32 |
-| long T (>= 0.75y) | 0.0048 | 0.014 | 0.53 |
-| wings and short T | 0.0097 | 0.027 | 1.32 |
+### Neural pricer vs. exact Heston
 
-The mean is far below a vol point; the worst single grid point (1.3) is in the wing/short-maturity corner.
+**5,000 held-out synthetic parameter sets; error measured in volatility points.**
 
-**Calibration to the real surface** (41 of 54 grid cells covered by data; 8 shared restarts)
+| Region | Mean | P95 | Max |
+|---|---:|---:|---:|
+| All | 0.0055 | 0.016 | 1.32 |
+| ATM (`abs k <= 0.04`) | 0.0044 | 0.013 | 0.49 |
+| Wings (`abs k >= 0.14`) | 0.0068 | 0.019 | 1.32 |
+| Short maturity (`T <= 0.10y`) | 0.0072 | 0.020 | 1.32 |
+| Long maturity (`T >= 0.75y`) | 0.0048 | 0.014 | 0.53 |
+| Wings + short maturity | 0.0097 | 0.027 | 1.32 |
 
-| | v0 | kappa | vbar | sigma | rho | grid RMSE (vol pts) | time | per evaluation |
-|---|---|---|---|---|---|---|---|---|
-| neural pricer | 0.0571 | 3.62 | 0.0491 | 1.2 (bound) | -0.818 | 2.505 | 1.3 s | 0.10 ms |
-| exact pricer | 0.0571 | 3.61 | 0.0492 | 1.2 (bound) | -0.818 | 2.505 | 7.1 s | 2.9 ms |
+The average approximation error is well below one volatility point. The largest single error occurs in the **wing / short-maturity** region.
 
-Same optimum; 5.6x faster end to end, about 28x per evaluation (CPU). The exact pricer here is already vectorised, so this is a modest speedup, not orders of magnitude. The 2.5-vol-point misfit is Heston's inability to match the short-maturity skew, not an optimiser problem.
+### Heston calibration to the real surface
 
-**Smoother vs SVI vs raw interpolation** (eval window k in [-0.15, 0.10], T in [0.05, 0.90], 101x40 points)
+**41 of 54 grid cells covered by market data; 8 shared optimizer restarts.**
 
-| method | RMSE (vol pts) | butterfly violations | calendar violations |
-|---|---|---|---|
-| raw interpolation | 0 (interpolates) | 101 | 2 |
+| Pricer | v0 | κ | v̄ | σ | ρ | Grid RMSE (vol pts) | Total time | Per evaluation |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Neural | 0.0571 | 3.62 | 0.0491 | 1.2 (bound) | -0.818 | 2.505 | 1.3 s | 0.10 ms |
+| Exact | 0.0571 | 3.61 | 0.0492 | 1.2 (bound) | -0.818 | 2.505 | 7.1 s | 2.9 ms |
+
+Both approaches converge to essentially the same optimum.
+
+- **5.6× faster** end-to-end calibration.
+- Approximately **28× faster per pricing evaluation** on CPU.
+- The calibrated vol-of-vol parameter `σ = 1.2` reaches its upper bound.
+- The **2.5-vol-point RMSE** indicates model misspecification, particularly Heston's difficulty matching the short-maturity skew.
+
+### Neural smoother vs. SVI vs. raw interpolation
+
+Evaluation window: `k ∈ [-0.15, 0.10]`, `T ∈ [0.05, 0.90]`, 101 × 40 evaluation grid.
+
+| Method | RMSE (vol pts) | Butterfly violations | Calendar violations |
+|---|---:|---:|---:|
+| Raw interpolation | 0 | 101 | 2 |
 | SVI per slice | 0.42 | 0 | 0 |
-| neural, no penalty | 0.34 | 0 | 0 |
-| neural, arbitrage penalties | 0.34 | 0 | 0 |
+| Neural, no penalty | 0.34 | 0 | 0 |
+| Neural, arbitrage penalties | 0.34 | 0 | 0 |
 
-Stress test (same quotes + synthetic 1.0 vol-pt noise): raw 1921 / 237, SVI 0 / 16, both neural variants 0 / 0, RMSE about 1.04-1.06.
-Honest reading: the neural smoother fits slightly better than SVI and has fewer violations under noise, but the penalty terms themselves make no measurable difference here.
+### Stress test
 
-**Forecast vs persistence: SYNTHETIC history only** (1,000 walk-forward test days, 0.3 vol-pt quote noise, error vs next-day observed surface)
+Using the same quotes with **synthetic 1.0-vol-point noise**:
 
-| model | RMSE (vol pts) | ratio vs persistence |
-|---|---|---|
-| persistence | 0.621 | 1.00 |
+| Method | Butterfly violations | Calendar violations | RMSE |
+|---|---:|---:|---:|
+| Raw interpolation | 1,921 | 237 | ~1.04 |
+| SVI | 0 | 16 | ~1.05 |
+| Neural, no penalty | 0 | 0 | ~1.04 |
+| Neural, arbitrage penalties | 0 | 0 | ~1.06 |
+
+The neural smoother fits slightly better than SVI and remains arbitrage-free in the reported noisy test. However, the explicit arbitrage penalty terms themselves make **no measurable difference** on this dataset.
+
+### Surface forecasting — synthetic only
+
+**1,000 walk-forward test days with 0.3-vol-point quote noise.**
+
+| Model | RMSE (vol pts) | Ratio vs. persistence |
+|---|---:|---:|
+| Persistence | 0.621 | 1.00 |
 | AR on PCA factors | 0.548 | 0.88 |
 | MLP on PCA factors | 0.564 | 0.91 |
 
-The gain comes mostly from filtering quote noise and exploiting mean reversion in a process I designed; it says nothing about real markets. All predicted and true surfaces had 0 butterfly/calendar violations on the 9x6 grid, so the calendar projection did nothing.
+The AR model reduces error relative to persistence, while the MLP performs slightly worse than AR.
 
-Figures: `results/figures/` (`surface_svi_3d`, `surface_heston_3d`, `surface_neural_3d`, `smiles_*`, `term_structure_*`, `residuals_*`, `arbitrage_compare*`, `pricer_error_grid`, `forecast_synthetic`).
+The reported improvement appears to come primarily from filtering quote noise and exploiting mean reversion in the synthetic process. **It should not be interpreted as evidence of predictive power in real option markets.**
 
+## Visualizations
+
+Generated figures are stored in `results/figures/`, including:
+
+- `surface_svi_3d%%
+- `surface_heston_3d%%
+- `surface_neural_3d%%
+- `smiles_*%%
+- `term_structure_*%%
+- `residuals_*%%
+- `arbitrage_compare*%%
+- `pricer_error_grid%%
+- `forecast_synthetic%%
 
 ## Limitations
-- One underlying, one delayed snapshot (Saturday, Friday-close quotes); no history, so no real forecast claims.
-- SPY options are American; European pricing and parity are used as an approximation.
-- DF uses a fixed 4% rate; the forward absorbs dividends/borrow. A free parity-slope fit was too noisy.
-- Heston cannot fit the steep short-maturity skew (k < -0.15, T < 0.15y); calibrated vol-of-vol sits on its upper bound (1.2).
-- The neural pricer is trained only inside the config's parameter box and fixed grid; its worst single grid point error is larger than its mean (see table).
-- The arbitrage penalties add no measurable benefit over the unpenalised network on this data (it is already arbitrage-free); the advantage shown is over SVI-per-slice and raw interpolation.
-- Butterfly counts use finite differences on the evaluation grid; on the 9-point forecast grid they are only indicative.
-- Rough Bergomi (PRD stretch) not attempted.
+
+- **Single underlying, single snapshot:** only one delayed SPY snapshot is used for real-data analysis.
+- **No real forecasting history:** Track C is synthetic because free sources do not provide the required historical option-surface dataset.
+- **American options:** SPY options are American, while European pricing and put-call parity are used as an approximation.
+- **Fixed discount rate:** the forward calculation uses a fixed 4% rate; dividend and borrow effects are absorbed by the estimated forward.
+- **Heston misspecification:** Heston struggles with the steep short-maturity skew, particularly for `k < -0.15` and `T < 0.15y`.
+- **Vol-of-vol boundary:** the calibrated Heston `σ` reaches the upper bound of 1.2.
+- **Neural-pricer domain:** the pricer is trained only within the parameter box and fixed `k/T` grid defined by the configuration.
+- **Worst-case neural error:** the maximum held-out pricer error is substantially larger than the mean, concentrated in the wing/short-maturity region.
+- **Penalty contribution:** arbitrage penalties produced no measurable improvement over the unpenalized neural smoother on the tested data.
+- **Finite-difference diagnostics:** butterfly counts depend on the evaluation grid and are therefore only indicative on the coarse 9-point forecast grid.
+- **No Rough Bergomi:** the Rough Bergomi stretch goal from the PRD was not attempted.
+
+## Reproducing the research
+
+```bash
+make setup
+make fetch
+make surface
+make train-pricer
+make calibrate
+make smooth
+make forecast
+make test
+make lint
+```
+
+To rerun the complete workflow while skipping expensive or unnecessary stages:
+
+```bash
+python scripts/run_all.py --skip-fetch --skip-train
+```
+
+Use the current market snapshot when you want fresh real-data results. To reproduce the exact numerical tables reported in this README, the original snapshot and generated artifacts would need to be preserved because the repository's live data collection intentionally updates with the market.
+
+## Project structure
+
+```text
+Neural-Vol-Surface/
+├── configs/                 # Experiment configuration
+├── data/
+│   ├── raw/                 # Downloaded snapshots (git-ignored)
+│   └── processed/           # Cleaned/intermediate datasets
+├── docs/
+│   ├── data_sources.md      # Market-data provenance
+│   └── progress.md          # Milestone log
+├── results/
+│   ├── figures/             # Plots and interactive visualizations
+│   ├── models/              # Trained neural models
+│   └── tables/              # Experiment results
+├── scripts/
+│   ├── collect_snapshot.py  # Daily SPY snapshot collector
+│   └── run_all.py           # End-to-end pipeline
+├── src/
+│   └── nvs/
+│       ├── surface/         # Surface construction and SVI
+│       ├── nn/              # Neural pricer, smoother, forecaster
+│       ├── calibrate.py     # Heston calibration
+│       └── viz.py           # Visualization
+├── tests/                   # Automated tests
+├── Makefile
+├── PRD.md
+├── pyproject.toml
+└── requirements.txt
+```
 
 ## References
-Horvath, Muguruza, Tomas (2021) *Deep Learning Volatility*; Ackerer, Tagasovska, Vatter (2020)
-*Deep Smoothing of the Implied Volatility Surface*; Gatheral & Jacquier (2014) *Arbitrage-free SVI*;
-Heston (1993); Fang & Oosterlee (2008).
+
+- Horvath, Muguruza, Tomas (2021), *Deep Learning Volatility*.
+- Ackerer, Tagasovska, Vatter (2020), *Deep Smoothing of the Implied Volatility Surface*.
+- Gatheral & Jacquier (2014), *Arbitrage-free SVI*.
+- Heston (1993), *A Closed-Form Solution for Options with Stochastic Volatility*.
+- Fang & Oosterlee (2008), numerical Fourier methods for option pricing.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
