@@ -10,7 +10,9 @@ in the principal branch. Pricing: Lewis (2001) single-integral formula,
     c(k, T) = E[(F_T - K)^+] / F = 1 - e^{k/2}/pi * int_0^inf Re[e^{-iuk} phi(u - i/2)] / (u^2+1/4) du,
 with phi(u) = E[exp(i u ln(F_T/F))]. Integration: Gauss-Legendre on [0, U] with U chosen so the
 envelope |phi(u - i/2)|/(u^2+1/4) is below 1e-12 (probed per parameter set, see `_cutoffs`) and
-n = clip(2U + 200, 400, 6000) nodes. Accuracy is checked against a published benchmark and an
+n = 4U + 200 nodes (rounded up to a multiple of 256, max 16000); with 2U+200 the far-OTM
+corner (k=+0.2, T=0.05) had ~1e-10 price error, with 4U it is ~4e-12. Accuracy is checked against
+a published benchmark and an
 independent quadrature in tests/test_heston.py. OTM prices are returned directly; ITM by parity.
 """
 from __future__ import annotations
@@ -60,7 +62,7 @@ def _leggauss(n):
 
 
 def _gl(U):
-    n = int(np.clip(2 * U + 200, 400, 6000))
+    n = int(np.clip(np.ceil((4 * U + 200) / 256) * 256, 512, 16000))  # quantised: reuse cache
     x, w = _leggauss(n)
     return 0.5 * U * (x + 1), 0.5 * U * w
 
@@ -78,7 +80,7 @@ def heston_otm_price(theta, k, T, budget=2_000_000):
     out = np.empty((theta.shape[0], T.size, k.size))
     s = 0
     while s < len(order):
-        n_est = int(np.clip(2 * Ui[order[min(s + 63, len(order) - 1)]] + 200, 400, 6000))
+        n_est = int(np.clip(4 * Ui[order[min(s + 63, len(order) - 1)]] + 200, 512, 16000))
         size = max(8, budget // (T.size * n_est))
         idx = order[s:s + size]
         u, wq = _gl(float(Ui[idx].max()))

@@ -64,12 +64,26 @@ synthetic:
   n_days: 1500
   dt: 0.003968254            # 1/252 year
   obs_noise_volpts: 0.3      # gaussian quote noise added to each grid vol, in vol points
-  # latent dynamics (log v0, log vbar, atanh rho are OU processes); kappa, sigma fixed
-  kappa: 2.5
+  kappa: 2.5                 # fixed Heston parameters
   sigma: 0.6
+  # latent OU processes: log v0, log vbar, z (rho = rho_mean + rho_amp tanh z); sd = stationary sd
+  latent:
+    v0_mean: 0.04
+    v0_sd: 0.35
+    v0_floor: 0.03           # keeps the far-wing prices above the IV-inversion resolution
+    v0_speed: 6.0            # 1/year
+    vbar_mean: 0.045
+    vbar_sd: 0.15
+    vbar_speed: 1.0
+    rho_mean: -0.55
+    rho_amp: 0.12
+    rho_speed: 2.0
 
 forecast:
   min_train: 500
   refit_every: 60
   n_pca: 3
   lags: 3
+  mlp_hidden: 64
+  mlp_epochs: 60
+  mlp_lr: 0.003

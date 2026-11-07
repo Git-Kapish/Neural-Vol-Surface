@@ -44,3 +44,15 @@
 
 Stress test (same quotes + synthetic 1.0 vol pt noise): raw 1921 / 237, SVI 0 / 16, neural 0 / 0 (both variants), RMSE about 1.04-1.06 (the noise level).
 - The neural smoother matches or beats SVI on fit and has fewer arbitrage violations than SVI/raw under noise. The arbitrage penalties themselves add no measurable benefit over the unpenalised network on this data (the small SiLU network is already smooth enough); I am not claiming otherwise.
+
+## Correction after M6 - Heston quadrature resolution (affects M3-M5)
+- Found while building synthetic history: with 2U+200 Gauss-Legendre nodes the far-OTM corner (k=+0.2, T=0.05) had ~1e-10 price error and went non-positive for ~3% of parameters. Changed to 4U+200 nodes (quantised, cached): ~4e-12 error, no non-positive prices. Training set regenerated (about 57k of 60k kept), pricer retrained, calibration rerun. Pricer held-out numbers are essentially unchanged (mean 0.0055 vol pts, max 1.32), so the worst-case error is genuine network error, not label noise.
+- Calibration after the change: neural 1.3 s vs exact 7.1 s (5.6x), per evaluation 0.10 ms vs 2.9 ms. Same optimum.
+
+## M7 - forecaster (SYNTHETIC history)
+- Latent Heston parameters (log v0, log vbar, rho via tanh) follow OU processes; kappa, sigma fixed; exact pricer gives daily 6x9 surfaces; 0.3 vol-pt Gaussian quote noise. Latent ranges are narrowed (v0 floor 0.03, rho in [-0.67, -0.43]) so every day prices (an earlier wider range lost 3-10% of days to unresolvable wing prices; forward-filling those would have flattered persistence, so failures are now a hard error).
+- Walk-forward: expanding window from day 500, refit every 60 days, PCA/AR/MLP fit on the training window only. Tests: features strictly precede targets, splits time-ordered and non-overlapping.
+- 1,000 test days, RMSE vs next-day observed (vol pts): persistence 0.621, AR-PCA 0.548 (0.88x), MLP 0.564 (0.91x). Zero butterfly/calendar violations everywhere, so the calendar projection was a no-op.
+
+## M8 - README, run_all, viz entry point
+- README with real-vs-synthetic table, results, limitations. `scripts/run_all.py`, `make viz`.

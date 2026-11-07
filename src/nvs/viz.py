@@ -105,6 +105,24 @@ def plot_error_grid(k, T, err_volpts, path, title):
     _save(fig, path)
 
 
+def plot_forecast(obs, truth, preds, test, table, k, T, path, label):
+    """Left: walk-forward RMSE per model. Right: ATM 0.25y IV over the last 120 test days."""
+    i_t, i_k = int(np.argmin(np.abs(T - 0.25))), int(np.argmin(np.abs(k)))
+    fig, (a, b) = plt.subplots(1, 2, figsize=(13, 4.5))
+    a.barh(table["model"], table["rmse_all_volpts"], color="C0")
+    a.set(xlabel="RMSE vs next-day observed surface (vol points)", title="Walk-forward error")
+    a.invert_yaxis()
+    sl = test[-120:]
+    b.plot(sl, truth[sl, i_t, i_k] * 100, "k", lw=2, label="latent truth")
+    b.plot(sl, obs[sl, i_t, i_k] * 100, ".", c="0.6", label="observed (noisy)")
+    for m, c in (("persistence", "C1"), ("AR-PCA", "C2"), ("MLP", "C3")):
+        b.plot(sl, preds[m][sl, i_t, i_k] * 100, c=c, lw=1, label=m)
+    b.set(xlabel="synthetic day", ylabel="ATM IV, T=0.25y (%)", title="One-day-ahead forecasts")
+    b.legend(fontsize=7)
+    fig.suptitle(label)
+    _save(fig, path)
+
+
 def plot_arbitrage_compare(k, T, surfaces: dict, path, title):
     """Heatmap of IV per method with butterfly (x) and calendar (+) violations marked.
 
@@ -123,3 +141,19 @@ def plot_arbitrage_compare(k, T, surfaces: dict, path, title):
         ax.legend(fontsize=7, loc="upper right")
     fig.suptitle(title)
     _save(fig, path)
+
+
+def main() -> None:
+    """`make viz`: regenerate the figures that do not need retraining (surface, Heston fit,
+    synthetic forecast). The smoother figures come from `make smooth` (about 10 min)."""
+    from nvs import calibrate
+    from nvs.nn import forecaster
+    from nvs.surface import build
+
+    build.main()
+    calibrate.main()
+    forecaster.main()
+
+
+if __name__ == "__main__":
+    main()

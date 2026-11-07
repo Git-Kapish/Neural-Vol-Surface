@@ -1,0 +1,8 @@
+model,data,butterfly_violations,calendar_violations,n_surfaces
+persistence,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0,0,1000
+AR-PCA,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0,0,1000
+AR-PCA + calendar projection,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0,0,1000
+MLP,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0,0,1000
+MLP + calendar projection,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0,0,1000
+latent truth (reference),"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0,0,1000
+noisy observation,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0,0,1000

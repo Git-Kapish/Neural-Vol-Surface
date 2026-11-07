@@ -1,0 +1,6 @@
+model,data,rmse_all_volpts,ratio_vs_persistence,rmse_atm (|k|<=0.04),rmse_wings (|k|>=0.14),rmse_short T (<=0.10y),rmse_long T (>=0.75y),rmse_wings & short T,rmse_vs_latent_truth_volpts
+persistence,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0.6209,1.0,0.6507,0.5916,0.7127,0.5206,0.6632,0.5432
+AR-PCA,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0.5477,0.882,0.5834,0.5138,0.6529,0.4291,0.5977,0.4588
+AR-PCA + calendar projection,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0.5477,0.882,0.5834,0.5138,0.6529,0.4291,0.5977,0.4588
+MLP,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0.5644,0.9089,0.6023,0.5276,0.6755,0.438,0.6171,0.4789
+MLP + calendar projection,"synthetic: latent Heston OU history, 0.3 vol-pt quote noise",0.5644,0.9089,0.6023,0.5276,0.6755,0.438,0.6171,0.4789
