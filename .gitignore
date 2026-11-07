@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+data/raw/*
+data/processed/*
+data/synthetic/*
+!data/*/.gitkeep
+results/models/*.pt
+!results/models/small_*.pt
+.ipynb_checkpoints/

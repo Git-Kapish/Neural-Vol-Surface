@@ -1,0 +1,24 @@
+# All tickers, paths and grids live here (CLAUDE.md rule 9). Units noted per key.
+data:
+  ticker: SPY
+  raw_dir: data/raw
+  processed_dir: data/processed
+  synthetic_dir: data/synthetic
+  max_expiries: 12          # nearest N expiries kept at fetch time
+  min_dte_days: 7           # drop expiries shorter than this (days)
+  risk_free_rate: 0.04      # fallback continuous rate, decimal per year; overridden by parity fit
+
+clean:
+  max_rel_spread: 0.5       # (ask-bid)/mid upper limit, decimal
+  min_open_interest: 10     # contracts
+  min_volume: 0             # contracts
+  min_price: 0.05           # USD, drop tiny-premium quotes
+  max_stale_days: 5         # last trade older than this (days) is stale
+
+# Fixed (k, T) training grid used by every network (CLAUDE.md rule 8).
+# k = ln(K/F), dimensionless; T in years.
+grid:
+  k: [-0.20, -0.14, -0.08, -0.04, 0.0, 0.04, 0.08, 0.14, 0.20]
+  T: [0.05, 0.10, 0.25, 0.50, 0.75, 1.00]
+
+seed: 0
