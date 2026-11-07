@@ -79,7 +79,8 @@ def extract_forward(strikes, call_mid, put_mid, spot, T, r_fallback, band=0.05, 
 
     Linear fit of C - P on K using up to `n_max` pairs closest to spot within +-`band`.
     Falls back to DF = exp(-r_fallback T) and the median of K + (C - P)/DF when the fit is
-    unresolvable (<3 pairs, T <= 0.15y, or implied rate more than 3% from the fallback); last resort F = spot e^{rT} (flagged).
+    unresolvable (<3 pairs, T <= 0.15y, or implied rate >3% from the fallback); last resort
+    F = spot e^{rT} (flagged).
     Returns (F, DF, method, n_pairs).
     """
     K, d = np.asarray(strikes, float), np.asarray(call_mid, float) - np.asarray(put_mid, float)
