@@ -17,3 +17,8 @@
 - Arbitrage on the eval window (k in [-0.15, 0.10], T in [0.05, 0.90], 101x40): SVI 0 butterfly / 0 calendar; raw interpolation 61 butterfly / 2 calendar (`results/tables/arbitrage_baselines.csv`).
 - Figures: `results/figures/surface_svi_3d.{html,png}`, `smiles_svi.png`, `term_structure_svi.png`, `residuals_svi.png`.
 - Note: SPY options are American; European approximation used. Per-slice SVI is not guaranteed calendar-free in general; it happens to be here.
+
+## M3 - Heston pricer and training-set generator
+- `pricing/heston.py`: little-trap CF, Lewis single-integral price, Gauss-Legendre on [0, U]. U is probed per parameter set (the Heston CF decays like exp(-cu), not Gaussian; my first fixed-U heuristic was off by 2e-5 on the benchmark and was replaced). Parameters are sorted by U and chunked.
+- Tests: Fang & Oosterlee (2008) benchmark (S=K=100, T=1, call = 5.785155450) matches to < 1e-6; matches an independent Gil-Pelaez quad to < 1e-6; vol-of-vol -> 0 reduces to BS (< 1e-5 in price, < 0.01 vol pt).
+- Speed: about 6.5 ms per parameter set for the 9x6 grid on CPU. About 3% of Sobol samples are dropped because the k=+0.2, T=0.05 call is below the 1e-13 price floor (unresolvable IV); counted and logged, not silent.
