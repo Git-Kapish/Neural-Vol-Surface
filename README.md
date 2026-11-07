@@ -7,6 +7,7 @@
 ![Plotly](https://img.shields.io/badge/Plotly-Interactive%20Charts-3F4F75?logo=plotly&logoColor=white)
 ![pytest](https://img.shields.io/badge/pytest-Tests-0A9EDC?logo=pytest&logoColor=white)
 ![Ruff](https://img.shields.io/badge/Ruff-Linting-D7FF64?logo=ruff&logoColor=black)
+![CI](https://github.com/Git-Kapish/Neural-Vol-Surface/actions/workflows/ci.yml/badge.svg)
 ![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 Builds an implied-volatility surface from a real SPY option-chain snapshot, then applies neural methods to:
