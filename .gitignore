@@ -8,6 +8,4 @@ data/raw/*
 data/processed/*
 data/synthetic/*
 !data/*/.gitkeep
-results/models/*.pt
-!results/models/small_*.pt
 .ipynb_checkpoints/

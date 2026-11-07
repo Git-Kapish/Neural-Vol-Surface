@@ -4,8 +4,9 @@ data:
   raw_dir: data/raw
   processed_dir: data/processed
   synthetic_dir: data/synthetic
-  max_expiries: 12          # nearest N expiries kept at fetch time
+  max_expiries: 30          # expiries kept at fetch time (evenly spread if more are available)
   min_dte_days: 7           # drop expiries shorter than this (days)
+  max_dte_days: 400         # drop expiries longer than this (days)
   risk_free_rate: 0.04      # fallback continuous rate, decimal per year; overridden by parity fit
 
 clean:
@@ -22,3 +23,51 @@ grid:
   T: [0.05, 0.10, 0.25, 0.50, 0.75, 1.00]
 
 seed: 0
+
+# Heston parameter box used for training the neural pricer: theta = (v0, kappa, vbar, sigma, rho).
+# v0, vbar: instantaneous / long-run variance (annualised, decimal^2); sigma: vol of vol.
+heston:
+  bounds:
+    v0: [0.01, 0.16]
+    kappa: [0.5, 6.0]
+    vbar: [0.01, 0.16]
+    sigma: [0.1, 1.2]
+    rho: [-0.95, -0.05]
+
+pricer:
+  n_train: 60000
+  n_val: 5000
+  hidden: 256
+  layers: 4
+  epochs: 300
+  batch: 512
+  lr: 0.002
+  max_mean_err_volpts: 0.5   # held-out mean abs error threshold used in tests/reporting (vol points)
+
+smoother:
+  hidden: 64
+  layers: 3
+  steps: 4000
+  lr: 0.005
+  lambda_butterfly: 50.0
+  lambda_calendar: 50.0
+  n_colloc: 4000
+  eval_k: [-0.15, 0.10]      # evaluation window for arbitrage counts (log-moneyness)
+  eval_T_min: 0.05           # years
+
+calibration:
+  n_restarts: 8
+
+synthetic:
+  n_days: 1500
+  dt: 0.003968254            # 1/252 year
+  obs_noise_volpts: 0.3      # gaussian quote noise added to each grid vol, in vol points
+  # latent dynamics (log v0, log vbar, atanh rho are OU processes); kappa, sigma fixed
+  kappa: 2.5
+  sigma: 0.6
+
+forecast:
+  min_train: 500
+  refit_every: 60
+  n_pca: 3
+  lags: 3

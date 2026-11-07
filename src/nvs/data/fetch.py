@@ -11,6 +11,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -19,7 +20,9 @@ from nvs.config import ROOT, load_config
 log = logging.getLogger(__name__)
 
 
-def fetch_chain(ticker: str, max_expiries: int, min_dte_days: int) -> tuple[pd.DataFrame, float]:
+def fetch_chain(
+    ticker: str, max_expiries: int, min_dte_days: int, max_dte_days: int
+) -> tuple[pd.DataFrame, float]:
     """Return (chain, spot). Chain has one row per option quote."""
     tk = yf.Ticker(ticker)
     hist = tk.history(period="5d")
@@ -28,11 +31,11 @@ def fetch_chain(ticker: str, max_expiries: int, min_dte_days: int) -> tuple[pd.D
     spot = float(hist["Close"].iloc[-1])
     now = pd.Timestamp.now(tz="UTC").normalize()
     frames = []
-    for exp in tk.options:
-        if (pd.Timestamp(exp, tz="UTC") - now).days < min_dte_days:
-            continue
-        if len(frames) >= max_expiries:
-            break
+    dte = {e: (pd.Timestamp(e, tz="UTC") - now).days for e in tk.options}
+    keep = [e for e, d in dte.items() if min_dte_days <= d <= max_dte_days]
+    if len(keep) > max_expiries:  # spread evenly so long maturities are covered
+        keep = [keep[i] for i in np.unique(np.linspace(0, len(keep) - 1, max_expiries).astype(int))]
+    for exp in keep:
         oc = tk.option_chain(exp)
         for kind, df in (("C", oc.calls), ("P", oc.puts)):
             d = df.rename(
@@ -56,7 +59,9 @@ def save_snapshot(cfg: dict | None = None) -> Path:
     """Fetch and write one snapshot; returns the output directory."""
     cfg = cfg or load_config()
     d = cfg["data"]
-    chain, spot = fetch_chain(d["ticker"], d["max_expiries"], d["min_dte_days"])
+    chain, spot = fetch_chain(
+        d["ticker"], d["max_expiries"], d["min_dte_days"], d["max_dte_days"]
+    )
     ts = datetime.now(UTC)
     out = ROOT / d["raw_dir"] / ts.strftime("%Y-%m-%d")
     out.mkdir(parents=True, exist_ok=True)
