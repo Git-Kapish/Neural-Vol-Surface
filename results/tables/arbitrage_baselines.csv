@@ -1,0 +1,3 @@
+method,data,butterfly_violations,butterfly_points,min_g,calendar_violations,calendar_points,min_dw
+svi,real,0,3960,0.20542469069247354,0,3939,0.00019587764745984323
+raw_interp,real,101,3960,-127.50235329873514,2,3939,-0.0032103068795181385
