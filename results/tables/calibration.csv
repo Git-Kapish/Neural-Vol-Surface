@@ -1,0 +1,3 @@
+method,v0,kappa,vbar,sigma,rho,grid_rmse_volpts,quotes_in_grid_range_rmse_volpts,weighted_cost,nfev_best,n_restarts,seconds,data,speedup_vs_exact,ms_per_eval
+neural pricer,0.0571,3.585,0.0492,1.2,-0.8158,2.50561,1.55825,8019.34658,13,8,1.27381,real SPY,2.90963,0.15876
+exact pricer,0.0571,3.6093,0.0492,1.2,-0.8181,2.50488,1.55425,8014.15167,13,8,3.70631,real SPY,1.0,2.29697

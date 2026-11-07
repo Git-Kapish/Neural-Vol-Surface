@@ -1,0 +1,5 @@
+method,data,rmse_volpts,rmse_bidask_weighted_volpts,butterfly_violations,butterfly_points,min_g,calendar_violations,calendar_points,min_dw
+raw interpolation,real SPY,0.0,0.0,101,3960,-127.50235,2,3939,-0.00321
+SVI (per slice),real SPY,0.41986,0.31157,0,3960,0.20542,0,3939,0.0002
+neural (no penalty),real SPY,0.34136,0.29625,0,3960,0.23882,0,3939,0.00035
+neural (arb. penalties),real SPY,0.34086,0.29559,0,3960,0.23882,0,3939,0.00035

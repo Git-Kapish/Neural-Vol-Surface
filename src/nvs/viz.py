@@ -90,6 +90,21 @@ def plot_residuals(quotes, model_iv, path, title):
     _save(fig, path)
 
 
+def plot_error_grid(k, T, err_volpts, path, title):
+    """Heatmap of mean absolute IV error (vol points) over the fixed (k, T) grid (nT, nk)."""
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    im = ax.imshow(err_volpts, origin="lower", aspect="auto", cmap="magma")
+    ax.set_xticks(range(len(k)), [f"{x:.2f}" for x in k])
+    ax.set_yticks(range(len(T)), [f"{x:.2f}" for x in T])
+    for i in range(len(T)):
+        for j in range(len(k)):
+            ax.text(j, i, f"{err_volpts[i, j]:.3f}", ha="center", va="center", fontsize=6,
+                    color="w")
+    fig.colorbar(im, label="vol points")
+    ax.set(xlabel="log-moneyness k", ylabel="maturity T (years)", title=title)
+    _save(fig, path)
+
+
 def plot_arbitrage_compare(k, T, surfaces: dict, path, title):
     """Heatmap of IV per method with butterfly (x) and calendar (+) violations marked.
 

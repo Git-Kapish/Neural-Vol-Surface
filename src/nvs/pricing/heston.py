@@ -16,6 +16,7 @@ independent quadrature in tests/test_heston.py. OTM prices are returned directly
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 
 import numpy as np
 
@@ -53,9 +54,14 @@ def _cutoffs(theta, T, tol=1e-12):
     return np.maximum(probe[np.minimum(last + 1, probe.size - 1)] * 1.15, 50.0)
 
 
+@lru_cache(maxsize=32)
+def _leggauss(n):
+    return np.polynomial.legendre.leggauss(n)  # O(n^2): cache, it dominates single evaluations
+
+
 def _gl(U):
     n = int(np.clip(2 * U + 200, 400, 6000))
-    x, w = np.polynomial.legendre.leggauss(n)
+    x, w = _leggauss(n)
     return 0.5 * U * (x + 1), 0.5 * U * w
 
 

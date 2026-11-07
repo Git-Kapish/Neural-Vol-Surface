@@ -1,0 +1,7 @@
+data,region,mean_abs_volpts,p95_abs_volpts,max_abs_volpts
+synthetic (exact Heston labels),all,0.0056,0.0156,1.3124
+synthetic (exact Heston labels),atm (|k|<=0.04),0.0043,0.0124,0.6864
+synthetic (exact Heston labels),wings (|k|>=0.14),0.0071,0.019,1.3124
+synthetic (exact Heston labels),short T (<=0.10y),0.0075,0.0199,1.3124
+synthetic (exact Heston labels),long T (>=0.75y),0.0047,0.0138,0.7811
+synthetic (exact Heston labels),wings & short T,0.0107,0.0272,1.3124

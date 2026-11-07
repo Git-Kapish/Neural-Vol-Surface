@@ -35,8 +35,9 @@ heston:
     rho: [-0.95, -0.05]
 
 pricer:
-  n_train: 60000
+  n_train: 50000
   n_val: 5000
+  n_test: 5000
   hidden: 256
   layers: 4
   epochs: 300
@@ -54,6 +55,7 @@ smoother:
   n_colloc: 4000
   eval_k: [-0.15, 0.10]      # evaluation window for arbitrage counts (log-moneyness)
   eval_T_min: 0.05           # years
+  stress_noise_volpts: 1.0   # gaussian noise (vol points) added to mid IVs in the stress test
 
 calibration:
   n_restarts: 8
