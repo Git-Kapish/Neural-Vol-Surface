@@ -43,7 +43,7 @@ flowchart LR
     A[SPY Option Chain<br/>yfinance Snapshot] --> B[Cleaning & Filtering]
     B --> C[Forward Extraction<br/>Put-Call Parity]
     C --> D[OTM IV Inversion]
-    D --> E[IV Surface<br/>k = ln(K/F), w = sigma²T]
+    D --> E["IV Surface<br/>k = ln(K/F), w = sigma²T"]
 
     E --> F[SVI Per Slice]
     E --> G[Neural Smoother]
